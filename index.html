@@ -5,28 +5,42 @@
     <title>System: Chess Leveling</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
-    
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-
     <style>
         body { background-color: #01060f; color: #ffffff; font-family: 'Arial', sans-serif; margin: 0; padding: 20px; overflow: hidden; }
+        
+        /* MEJORA: Reducción de brillo para que sea uniforme y digital (menos cansado a la vista) */
         * { text-shadow: 0 0 3px #fff, 0 0 6px #00d9ff; }
 
         /* --- PERFIL HUD (IZQUIERDA) --- */
         .profile-hud {
-            position: absolute; top: 20px; left: 20px; display: flex; align-items: center; gap: 15px; cursor: pointer; z-index: 1000; transition: transform 0.3s;
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            cursor: pointer;
+            z-index: 1000;
+            transition: transform 0.3s;
         }
         .profile-hud:hover { transform: scale(1.05); }
+        
         .profile-avatar {
-            width: 50px; height: 50px; border: 2px solid #00d9ff; background: #000; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(0, 217, 255, 0.5);
+            width: 50px; height: 50px;
+            border: 2px solid #00d9ff;
+            background: #000;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 0 15px rgba(0, 217, 255, 0.5);
         }
         .profile-avatar i { font-size: 30px; color: #00d9ff; }
+        
         .profile-info { display: flex; flex-direction: column; }
         .profile-info .profile-name { font-weight: bold; font-size: 16px; color: #fff; letter-spacing: 1px; text-transform: uppercase; }
         .profile-info .profile-rank { font-size: 12px; color: #00d9ff; margin-top: 2px; }
 
+        /* Resto de estilos generales */
         .game-layout { display: flex; justify-content: center; gap: 30px; flex-wrap: wrap; margin-top: 40px; } 
+        
         #board-wrapper { width: 450px; border: 2px solid #00d9ff; box-shadow: 0 0 25px rgba(0, 217, 255, 0.4); }
         #board { width: 100%; border: none; }
 
@@ -37,49 +51,79 @@
         }
         .nav-arrows { display: flex; gap: 80px; font-size: 24px; font-weight: bold; color: #ffffff; cursor: pointer; }
         .footer-btns { display: flex; gap: 15px; font-size: 13px; align-items: center; }
+        
         .control-item { cursor: pointer; transition: 0.3s; color: #ffffff; }
         .control-item:hover { color: #00d9ff; transform: scale(1.2); }
         .control-item i { font-size: 16px; }
 
-        .btn-resign { background: rgba(255, 0, 85, 0.1); color: #ff0055; border: 1px solid #ff0055; padding: 5px 10px; font-weight: bold; cursor: pointer; text-shadow: 0 0 8px #ff0055; box-shadow: inset 0 0 10px rgba(255, 0, 85, 0.2); transition: all 0.3s ease; }
+        .btn-resign {
+            background: rgba(255, 0, 85, 0.1); color: #ff0055; border: 1px solid #ff0055;
+            padding: 5px 10px; font-weight: bold; cursor: pointer;
+            text-shadow: 0 0 8px #ff0055; box-shadow: inset 0 0 10px rgba(255, 0, 85, 0.2); transition: all 0.3s ease;
+        }
         .btn-resign:hover { background: rgba(255, 0, 85, 0.2); box-shadow: 0 0 15px #ff0055; transform: scale(1.05); }
 
-        .btn-draw { background: rgba(0, 217, 255, 0.1); color: #00d9ff; border: 1px solid #00d9ff; padding: 5px 10px; font-weight: bold; cursor: pointer; text-shadow: 0 0 8px #00d9ff; box-shadow: inset 0 0 10px rgba(0, 217, 255, 0.2); transition: all 0.3s ease; }
+        .btn-draw {
+            background: rgba(0, 217, 255, 0.1); color: #00d9ff; border: 1px solid #00d9ff;
+            padding: 5px 10px; font-weight: bold; cursor: pointer;
+            text-shadow: 0 0 8px #00d9ff; box-shadow: inset 0 0 10px rgba(0, 217, 255, 0.2); transition: all 0.3s ease;
+        }
         .btn-draw:hover { background: rgba(0, 217, 255, 0.2); box-shadow: 0 0 15px #00d9ff; transform: scale(1.05); color: #fff; }
 
         .white-1e1d7 { background-color: #0f172a !important; } 
         .black-3c85d { background-color: #1e293b !important; }
 
-        .highlight-hint, .highlight-capture { width: 16px; height: 16px; border-radius: 50%; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; z-index: 999; }
+        .highlight-hint, .highlight-capture { 
+            width: 16px; height: 16px; border-radius: 50%; position: absolute; 
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            pointer-events: none; z-index: 999;
+        }
         .highlight-hint { background: rgba(0, 217, 255, 0.3); border: 2px solid #00d9ff; box-shadow: 0 0 12px #00d9ff; }
         .highlight-capture { background: rgba(255, 0, 85, 0.4); border: 2px solid #ff0055; box-shadow: 0 0 15px #ff0055; }
 
-        .check-warning { box-shadow: inset 0 0 30px rgba(255, 0, 85, 0.6) !important; animation: warning-blink 0.6s infinite alternate; }
+        .check-warning {
+            box-shadow: inset 0 0 30px rgba(255, 0, 85, 0.6) !important;
+            animation: warning-blink 0.6s infinite alternate;
+        }
         @keyframes warning-blink { from { background-color: rgba(255, 0, 85, 0.05); } to { background-color: rgba(255, 0, 85, 0.4); } }
 
         .online-panel { width: 320px; background: rgba(5, 15, 30, 0.95); border: 1px solid #00d9ff; padding: 20px; border-radius: 2px; display: flex; flex-direction: column; gap: 10px; min-height: 500px; }
+        
+        /* Contenedor Reloj con Botón */
         .clock-row { display: flex; gap: 5px; align-items: center; }
         .clock { flex-grow: 1; padding: 10px; border: 1px solid #1a3a5a; font-size: 28px; text-align: center; background: #000; color: #ffffff; }
         .btn-clock-adj { background: #000; border: 1px solid #00d9ff; color: #00d9ff; width: 40px; height: 53px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.3s; }
         .btn-clock-adj:hover { background: #00d9ff; color: #000; }
 
-        .btn-system { background: rgba(0, 217, 255, 0.05); border: 1px solid #00d9ff; color: #fff; padding: 12px; cursor: pointer; text-align: center; transition: all 0.3s ease; }
+        .btn-system { 
+            background: rgba(0, 217, 255, 0.05); border: 1px solid #00d9ff; color: #fff; padding: 12px; cursor: pointer; text-align: center; transition: all 0.3s ease;
+        }
         .btn-system:hover { background: rgba(0, 217, 255, 0.15); color: #00d9ff; transform: scale(1.05); box-shadow: 0 0 15px rgba(0, 217, 255, 0.5); }
 
-        .btn-new-game { background: rgba(0, 217, 255, 0.1); color: #ffffff; border: 1px solid #00d9ff; padding: 12px; width: 100%; font-weight: bold; cursor: pointer; margin-top: auto; transition: all 0.3s ease; }
+        .btn-new-game { 
+            background: rgba(0, 217, 255, 0.1); color: #ffffff; border: 1px solid #00d9ff; padding: 12px; width: 100%; font-weight: bold; cursor: pointer; margin-top: auto; transition: all 0.3s ease;
+        }
         .btn-new-game:hover { background: rgba(0, 217, 255, 0.3); transform: scale(1.05); box-shadow: 0 0 20px #00d9ff; }
         
-        #btn-rematch { display: none; background: rgba(255, 0, 85, 0.1); color: #ff0055; border: 1px solid #ff0055; padding: 12px; width: 100%; font-weight: bold; margin-top: 10px; cursor: pointer; text-shadow: 0 0 8px #ff0055; box-shadow: inset 0 0 10px rgba(255, 0, 85, 0.2); transition: all 0.3s ease; }
+        #btn-rematch { 
+            display: none; background: rgba(255, 0, 85, 0.1); color: #ff0055; border: 1px solid #ff0055; padding: 12px; width: 100%; font-weight: bold; margin-top: 10px; cursor: pointer; text-shadow: 0 0 8px #ff0055; box-shadow: inset 0 0 10px rgba(255, 0, 85, 0.2); transition: all 0.3s ease;
+        }
         #btn-rematch:hover { transform: scale(1.05); box-shadow: 0 0 20px #ff0055; background: rgba(255, 0, 85, 0.2); }
 
+        /* --- ESTILOS REGISTRO DE JUGADAS --- */
         #multiplayer-log { display: none; flex-direction: column; flex-grow: 1; }
-        .log-container { border: 1px solid #00d9ff; background: rgba(0,0,0,0.6); height: 220px; overflow-y: auto; padding: 10px; margin-top: 10px; font-size: 14px; }
+        .log-container { 
+            border: 1px solid #00d9ff; background: rgba(0,0,0,0.6); 
+            height: 220px; overflow-y: auto; padding: 10px; 
+            margin-top: 10px; font-size: 14px;
+        }
         .log-container::-webkit-scrollbar { width: 4px; }
         .log-container::-webkit-scrollbar-thumb { background: #00d9ff; }
         .move-row { display: grid; grid-template-columns: 35px 1fr 1fr; border-bottom: 1px solid rgba(0,217,255,0.1); padding: 4px 0; }
         .move-num { color: #555; font-weight: bold; }
         .move-val { color: #fff; text-align: center; }
 
+        /* Misiones y Modal */
         .mission-box { text-align: left; border: 1px solid #00d9ff; padding: 15px; background: rgba(0,0,0,0.6); box-shadow: inset 0 0 20px rgba(0, 217, 255, 0.1); }
         .mission-title { color: #ffffff; margin-top: 0; text-transform: uppercase; letter-spacing: 2px; border-bottom: 1px solid #00d9ff; padding-bottom: 5px; font-size: 16px; text-shadow: 0 0 5px #00d9ff, 0 0 10px #00d9ff, 0 0 20px #00d9ff; }
         .mission-list { list-style: none; padding: 0; color: #ccc; font-size: 14px; margin: 15px 0; }
@@ -90,6 +134,7 @@
         .mission-completed span { text-decoration: line-through; color: #666; text-shadow: none; }
         .mission-warning { font-size: 11px; color: #ff0055; margin-top: 15px; text-transform: uppercase; letter-spacing: 1px; font-weight: bold; text-align: center; border: 1px solid #ff0055; padding: 5px 10px; background: rgba(255, 0, 85, 0.1); white-space: nowrap; text-shadow: 0 0 8px #ff0055; box-shadow: inset 0 0 10px rgba(255, 0, 85, 0.2), 0 0 15px rgba(255, 0, 85, 0.2); }
 
+        /* TABLA DE RANGOS UNIFICADA */
         .rank-table { width: 100%; border-collapse: collapse; margin-top: 10px; color: #fff; text-align: left; font-size: 13px; }
         .rank-table th { border-bottom: 1px solid #00d9ff; padding: 8px; color: #fff; text-transform: uppercase; }
         .rank-table td { padding: 8px; border-bottom: 1px solid rgba(0, 217, 255, 0.1); color: #fff; }
@@ -98,9 +143,30 @@
         .stat-val { color: #00d9ff; font-weight: bold; font-size: 18px; display: block; }
         .stat-label { font-size: 11px; color: #aaa; text-transform: uppercase; }
 
-        #system-modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8); align-items: center; justify-content: center; }
-        .leveling-frame { position: relative; width: 550px; background: rgba(5, 12, 24, 0.98); border: 1px solid rgba(0, 217, 255, 0.8); padding: 5px; }
+        /* AJUSTE PARA CENTRALIZAR MODAL */
+        #system-modal { 
+            display: none; 
+            position: fixed; 
+            z-index: 2000; 
+            left: 0; 
+            top: 0; 
+            width: 100%; 
+            height: 100%; 
+            background-color: rgba(0,0,0,0.8); 
+            align-items: center; 
+            justify-content: center; 
+        }
+        
+        .leveling-frame { 
+            position: relative; 
+            width: 550px; 
+            background: rgba(5, 12, 24, 0.98); 
+            border: 1px solid rgba(0, 217, 255, 0.8); 
+            padding: 5px; 
+        }
+        
         .profile-frame-active { width: 600px !important; }
+
         .modal-header { display: flex; align-items: center; justify-content: center; padding: 12px; border-bottom: 1px solid rgba(0, 217, 255, 0.5); font-size: 26px; font-weight: bold; letter-spacing: 6px; gap: 15px; }
         .info-circle { width: 32px; height: 32px; border: 2.5px solid #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: bold; box-shadow: 0 0 5px #fff, 0 0 10px #00d9ff; line-height: 1; padding-bottom: 2px; }
         .modal-body { padding: 15px 25px; font-size: 17px; text-align: center; line-height: 1.5; }
@@ -118,7 +184,19 @@
         .bot-icon { font-size: 24px; color: #ff0055; text-shadow: 0 0 10px #ff0055; margin-right: 15px; }
         .bot-info { flex-grow: 1; text-align: left; }
         .bot-elo { font-size: 14px; color: #00d9ff; font-weight: bold; }
-        .challenge-item { border: 1px solid rgba(0, 217, 255, 0.3); background: rgba(0,0,0,0.4); margin-bottom: 5px; padding: 8px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: 0.3s; }
+
+        /* Estilos de retos para el modo multijugador */
+        .challenge-item {
+            border: 1px solid rgba(0, 217, 255, 0.3);
+            background: rgba(0,0,0,0.4);
+            margin-bottom: 5px;
+            padding: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: 0.3s;
+        }
         .challenge-item:hover { background: rgba(0, 217, 255, 0.1); border-color: #00d9ff; }
         .challenge-time { font-weight: bold; color: #00d9ff; }
     </style>
@@ -199,34 +277,7 @@
         var sinLimites = false;
         var redoStack = []; 
 
-        // --- CONFIGURACIÓN DE FIREBASE (TU SISTEMA CONECTADO) ---
-        const firebaseConfig = {
-          apiKey: "AIzaSyDTKMsygBXQwHqdGekGR9GcvHPbzpuoFPs",
-          authDomain: "cheeveling.firebaseapp.com",
-          databaseURL: "https://cheeveling-default-rtdb.firebaseio.com",
-          projectId: "cheeveling",
-          storageBucket: "cheeveling.firebasestorage.app",
-          messagingSenderId: "45408006333",
-          appId: "1:45408006333:web:1eb3116ec838e6e41cc7d4"
-        };
-
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database().ref('duelo_en_vivo');
-
-        // Escuchar los movimientos de otros jugadores en el mundo
-        db.on('value', (snapshot) => {
-            const data = snapshot.val();
-            if (data && data.emisor !== "JAKE") {
-                game.move(data.movimiento);
-                board.position(game.fen());
-                actualizarUIJugadas();
-                updateCheckVisuals();
-                // Iniciar reloj si el oponente movió
-                if (!timerInterval && !sinLimites) timerInterval = setInterval(updateClocks, 1000);
-            }
-        });
-
-        // --- TODAS TUS FUNCIONES ORIGINALES (SIN BORRAR NADA) ---
+        // --- LÓGICA DE TIEMPO Y EMPAREJAMIENTO ---
         function setSystemTime(segundos) {
             clearInterval(timerInterval);
             timerInterval = null;
@@ -244,9 +295,12 @@
             }
         }
 
+        // --- LÓGICA DE REGISTRO DE JUGADAS ---
         function activarModoLog() {
             document.getElementById('panel-principal').style.display = 'none';
             document.getElementById('multiplayer-log').style.display = 'flex';
+            
+            // Mejora: Menú de retos para emparejar tiempo + SIN LÍMITES
             let html = `
                 <div style="color:#00d9ff; text-align:center; margin-bottom:10px; font-size:11px;">RETOS DISPONIBLES</div>
                 <div class="challenge-item" onclick="setSystemTime(60); alert('Duelo Bala Emparejado');"><span>Bala</span><span class="challenge-time">1:00</span></div>
@@ -279,6 +333,7 @@
             }
         }
 
+        // --- TUS FUNCIONES ORIGINALES ---
         function removeHighlights() { $('.highlight-hint, .highlight-capture').remove(); sourceSquare = null; }
 
         function updateCheckVisuals() {
@@ -316,10 +371,11 @@
             if (sourceSquare) {
                 var move = game.move({ from: sourceSquare, to: square, promotion: 'q' });
                 if (move) {
-                    // --- ENVÍO DE JUGADA A FIREBASE ---
-                    db.set({ movimiento: move, emisor: "JAKE" });
-
-                    redoStack = []; board.position(game.fen()); removeHighlights(); updateCheckVisuals(); actualizarUIJugadas();
+                    redoStack = []; 
+                    board.position(game.fen());
+                    removeHighlights();
+                    updateCheckVisuals();
+                    actualizarUIJugadas();
                     if (!timerInterval && !sinLimites) timerInterval = setInterval(updateClocks, 1000);
                     if (game.in_checkmate()) endGame("Mate");
                     return;
@@ -343,7 +399,9 @@
             return m + ":" + (sec < 10 ? "0"+sec : sec);
         }
 
-        function openModal() { $('#system-modal').css('display', 'flex').hide().fadeIn(300); }
+        function openModal() {
+            $('#system-modal').css('display', 'flex').hide().fadeIn(300);
+        }
 
         function endGame(reason) {
             clearInterval(timerInterval);
@@ -496,7 +554,9 @@
             let bots = botsData[rango] || botsData['E'];
             let step = Math.floor((maxElo - minElo) / bots.length);
             var html = `<div class="dungeon-list">`;
+            
             let tDungeon = (rango === 'E') ? 600 : (rango === 'D') ? 300 : 180;
+
             bots.forEach((botName, index) => {
                 let currentElo = minElo + (step * index);
                 html += `<div class="dungeon-item" onclick="setSystemTime(${tDungeon}); closeModal(); alert('Iniciando Incursión contra ${botName}...');">
@@ -511,7 +571,10 @@
         }
 
         function confirmRematch() { location.reload(); }
-        function closeModal() { $('#system-modal').fadeOut(300); setTimeout(() => $('#modal-container').removeClass('profile-frame-active'), 300); }
+        function closeModal() { 
+            $('#system-modal').fadeOut(300); 
+            setTimeout(() => $('#modal-container').removeClass('profile-frame-active'), 300);
+        }
 
         board = Chessboard('board', {
             draggable: true, position: 'start',
@@ -523,10 +586,6 @@
             onDrop: (s, t) => {
                 var m = game.move({ from: s, to: t, promotion: 'q' });
                 if (m === null) { setTimeout(() => showMoves(s), 50); return 'snapback'; }
-                
-                // --- ENVÍO DE JUGADA AL SERVIDOR ---
-                db.set({ movimiento: m, emisor: "JAKE" });
-
                 redoStack = []; removeHighlights(); updateCheckVisuals(); actualizarUIJugadas();
                 if (!timerInterval && !sinLimites) timerInterval = setInterval(updateClocks, 1000);
                 if (game.in_checkmate()) endGame("Mate");
