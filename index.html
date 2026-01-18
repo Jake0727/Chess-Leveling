@@ -5,6 +5,10 @@
     <title>System: Chess Leveling</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+    
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
     <style>
         body { background-color: #01060f; color: #ffffff; font-family: 'Arial', sans-serif; margin: 0; padding: 20px; overflow: hidden; }
         
@@ -277,6 +281,31 @@
         var sinLimites = false;
         var redoStack = []; 
 
+        // --- CONFIGURACIÓN DE FIREBASE (TU SISTEMA CHEEVELING) ---
+        const firebaseConfig = {
+          apiKey: "AIzaSyDTKMsygBXQwHqdGekGR9GcvHPbzpuoFPs",
+          authDomain: "cheeveling.firebaseapp.com",
+          databaseURL: "https://cheeveling-default-rtdb.firebaseio.com",
+          projectId: "cheeveling",
+          storageBucket: "cheeveling.firebasestorage.app",
+          messagingSenderId: "45408006333",
+          appId: "1:45408006333:web:1eb3116ec838e6e41cc7d4"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database().ref('duelo_en_vivo');
+
+        // Escuchar los movimientos de otros jugadores en el mundo
+        db.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data && data.emisor !== "JAKE") {
+                game.move(data.movimiento);
+                board.position(game.fen());
+                actualizarUIJugadas();
+                updateCheckVisuals();
+            }
+        });
+
         // --- LÓGICA DE TIEMPO Y EMPAREJAMIENTO ---
         function setSystemTime(segundos) {
             clearInterval(timerInterval);
@@ -300,7 +329,6 @@
             document.getElementById('panel-principal').style.display = 'none';
             document.getElementById('multiplayer-log').style.display = 'flex';
             
-            // Mejora: Menú de retos para emparejar tiempo + SIN LÍMITES
             let html = `
                 <div style="color:#00d9ff; text-align:center; margin-bottom:10px; font-size:11px;">RETOS DISPONIBLES</div>
                 <div class="challenge-item" onclick="setSystemTime(60); alert('Duelo Bala Emparejado');"><span>Bala</span><span class="challenge-time">1:00</span></div>
@@ -371,6 +399,9 @@
             if (sourceSquare) {
                 var move = game.move({ from: sourceSquare, to: square, promotion: 'q' });
                 if (move) {
+                    // --- ESTO ENVÍA TU JUGADA AL MUNDO ---
+                    db.set({ movimiento: move, emisor: "JAKE" });
+
                     redoStack = []; 
                     board.position(game.fen());
                     removeHighlights();
@@ -586,6 +617,10 @@
             onDrop: (s, t) => {
                 var m = game.move({ from: s, to: t, promotion: 'q' });
                 if (m === null) { setTimeout(() => showMoves(s), 50); return 'snapback'; }
+                
+                // --- ESTO ENVÍA TU JUGADA AL MUNDO ---
+                db.set({ movimiento: m, emisor: "JAKE" });
+
                 redoStack = []; removeHighlights(); updateCheckVisuals(); actualizarUIJugadas();
                 if (!timerInterval && !sinLimites) timerInterval = setInterval(updateClocks, 1000);
                 if (game.in_checkmate()) endGame("Mate");
