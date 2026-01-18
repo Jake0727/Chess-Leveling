@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>System: Chess Leveling</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+    <style>
+        body { background-color: #01060f; color: #ffffff; font-family: 'Arial', sans-serif; margin: 0; padding: 20px; overflow: hidden; }
+        
+        /* MEJORA: Reducción de brillo para que sea uniforme y digital (menos cansado a la vista) */
+        * { text-shadow: 0 0 3px #fff, 0 0 6px #00d9ff; }
+
+        /* --- PERFIL HUD (IZQUIERDA) --- */
+        .profile-hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            cursor: pointer;
+            z-index: 1000;
+            transition: transform 0.3s;
+        }
+        .profile-hud:hover { transform: scale(1.05); }
+        
+        .profile-avatar {
+            width: 50px; height: 50px;
+            border: 2px solid #00d9ff;
+            background: #000;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 0 15px rgba(0, 217, 255, 0.5);
+        }
+        .profile-avatar i { font-size: 30px; color: #00d9ff; }
+        
+        .profile-info { display: flex; flex-direction: column; }
+        .profile-name { font-weight: bold; font-size: 16px; color: #fff; letter-spacing: 1px; text-transform: uppercase; }
+        .profile-rank { font-size: 12px; color: #00d9ff; margin-top: 2px; }
+
+        /* Resto de estilos generales */
+        .game-layout { display: flex; justify-content: center; gap: 30px; flex-wrap: wrap; margin-top: 40px; } 
+        
+        #board-wrapper { width: 450px; border: 2px solid #00d9ff; box-shadow: 0 0 25px rgba(0, 217, 255, 0.4); }
+        #board { width: 100%; border: none; }
+
+        .board-footer { 
+            display: flex; justify-content: space-between; align-items: center; 
+            background: rgba(5, 15, 30, 0.95); border-top: 1px solid #00d9ff; 
+            padding: 10px 15px; height: 40px;
+        }
+        .nav-arrows { display: flex; gap: 80px; font-size: 24px; font-weight: bold; color: #ffffff; cursor: pointer; }
+        .footer-btns { display: flex; gap: 15px; font-size: 13px; align-items: center; }
+        
+        .control-item { cursor: pointer; transition: 0.3s; color: #ffffff; }
+        .control-item:hover { color: #00d9ff; transform: scale(1.2); }
+        .control-item i { font-size: 16px; }
+
+        .btn-resign {
+            background: rgba(255, 0, 85, 0.1); color: #ff0055; border: 1px solid #ff0055;
+            padding: 5px 10px; font-weight: bold; cursor: pointer;
+            text-shadow: 0 0 8px #ff0055; box-shadow: inset 0 0 10px rgba(255, 0, 85, 0.2); transition: all 0.3s ease;
+        }
+        .btn-resign:hover { background: rgba(255, 0, 85, 0.2); box-shadow: 0 0 15px #ff0055; transform: scale(1.05); }
+
+        .btn-draw {
+            background: rgba(0, 217, 255, 0.1); color: #00d9ff; border: 1px solid #00d9ff;
+            padding: 5px 10px; font-weight: bold; cursor: pointer;
+            text-shadow: 0 0 8px #00d9ff; box-shadow: inset 0 0 10px rgba(0, 217, 255, 0.2); transition: all 0.3s ease;
+        }
+        .btn-draw:hover { background: rgba(0, 217, 255, 0.2); box-shadow: 0 0 15px #00d9ff; transform: scale(1.05); color: #fff; }
+
+        .white-1e1d7 { background-color: #0f172a !important; } 
+        .black-3c85d { background-color: #1e293b !important; }
+
+        .highlight-hint, .highlight-capture { 
+            width: 16px; height: 16px; border-radius: 50%; position: absolute; 
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            pointer-events: none; z-index: 999;
+        }
+        .highlight-hint { background: rgba(0, 217, 255, 0.3); border: 2px solid #00d9ff; box-shadow: 0 0 12px #00d9ff; }
+        .highlight-capture { background: rgba(255, 0, 85, 0.4); border: 2px solid #ff0055; box-shadow: 0 0 15px #ff0055; }
+
+        .check-warning {
+            box-shadow: inset 0 0 30px rgba(255, 0, 85, 0.6) !important;
+            animation: warning-blink 0.6s infinite alternate;
+        }
+        @keyframes warning-blink { from { background-color: rgba(255, 0, 85, 0.05); } to { background-color: rgba(255, 0, 85, 0.4); } }
+
+        .online-panel { width: 320px; background: rgba(5, 15, 30, 0.95); border: 1px solid #00d9ff; padding: 20px; border-radius: 2px; display: flex; flex-direction: column; gap: 10px; }
+        .clock { padding: 10px; border: 1px solid #1a3a5a; font-size: 28px; text-align: center; background: #000; color: #ffffff; }
+
+        .btn-system { 
+            background: rgba(0, 217, 255, 0.05); border: 1px solid #00d9ff; color: #fff; padding: 12px; cursor: pointer; text-align: center; transition: all 0.3s ease;
+        }
+        .btn-system:hover { background: rgba(0, 217, 255, 0.15); color: #00d9ff; transform: scale(1.05); box-shadow: 0 0 15px rgba(0, 217, 255, 0.5); }
+
+        .btn-new-game { 
+            background: rgba(0, 217, 255, 0.1); color: #ffffff; border: 1px solid #00d9ff; padding: 12px; width: 100%; font-weight: bold; cursor: pointer; margin-top: 10px; transition: all 0.3s ease;
+        }
+        .btn-new-game:hover { background: rgba(0, 217, 255, 0.3); transform: scale(1.05); box-shadow: 0 0 20px #00d9ff; }
+        
+        #btn-rematch { 
+            display: none; background: rgba(255, 0, 85, 0.1); color: #ff0055; border: 1px solid #ff0055; padding: 12px; width: 100%; font-weight: bold; margin-top: 10px; cursor: pointer; text-shadow: 0 0 8px #ff0055; box-shadow: inset 0 0 10px rgba(255, 0, 85, 0.2); transition: all 0.3s ease;
+        }
+        #btn-rematch:hover { transform: scale(1.05); box-shadow: 0 0 20px #ff0055; background: rgba(255, 0, 85, 0.2); }
+
+        /* Misiones y Modal */
+        .mission-box { text-align: left; border: 1px solid #00d9ff; padding: 15px; background: rgba(0,0,0,0.6); box-shadow: inset 0 0 20px rgba(0, 217, 255, 0.1); }
+        
+        .mission-title { 
+            color: #ffffff; margin-top: 0; text-transform: uppercase; letter-spacing: 2px; 
+            border-bottom: 1px solid #00d9ff; padding-bottom: 5px; font-size: 16px;
+            text-shadow: 0 0 5px #00d9ff, 0 0 10px #00d9ff, 0 0 20px #00d9ff;
+        }
+        .mission-list { list-style: none; padding: 0; color: #ccc; font-size: 14px; margin: 15px 0; }
+        .mission-list li { margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
+        .mission-checkbox { color: #00d9ff; font-weight: bold; }
+        
+        .mission-warning { 
+            font-size: 11px; color: #ff0055; margin-top: 15px; text-transform: uppercase; 
+            letter-spacing: 1px; font-weight: bold; text-align: center; border: 1px solid #ff0055; 
+            padding: 5px 10px; background: rgba(255, 0, 85, 0.1); white-space: nowrap; 
+            text-shadow: 0 0 8px #ff0055; box-shadow: inset 0 0 10px rgba(255, 0, 85, 0.2), 0 0 15px rgba(255, 0, 85, 0.2);
+        }
+
+        /* MEJORA: TABLA DE RANGOS UNIFICADA (Estética blanca digital de "VOLVER") */
+        .rank-table { width: 100%; border-collapse: collapse; margin-top: 10px; color: #fff; text-align: left; font-size: 13px; }
+        .rank-table th { border-bottom: 1px solid #00d9ff; padding: 8px; color: #fff; text-transform: uppercase; }
+        .rank-table td { padding: 8px; border-bottom: 1px solid rgba(0, 217, 255, 0.1); color: #fff; }
+        
+        /* ESTILOS PARA EL MENÚ DEL PERFIL */
+        .profile-menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+        .profile-stat { background: rgba(0,0,0,0.5); border: 1px solid #00d9ff; padding: 8px; text-align: center; }
+        .stat-val { color: #00d9ff; font-weight: bold; font-size: 18px; display: block; }
+        .stat-label { font-size: 11px; color: #aaa; text-transform: uppercase; }
+
+        #system-modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8); }
+        
+        /* CUADRO BASE CENTRADO (12% margin) */
+        .leveling-frame { position: relative; margin: 12% auto; width: 550px; background: rgba(5, 12, 24, 0.98); border: 1px solid rgba(0, 217, 255, 0.8); padding: 5px; }
+        
+        /* CLASE NUEVA: Solo para el perfil (Subir el cuadro) */
+        .profile-frame-active { margin: 4% auto !important; }
+
+        .modal-header { display: flex; align-items: center; justify-content: center; padding: 12px; border-bottom: 1px solid rgba(0, 217, 255, 0.5); font-size: 26px; font-weight: bold; letter-spacing: 6px; gap: 15px; }
+        .info-circle { width: 32px; height: 32px; border: 2.5px solid #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: bold; box-shadow: 0 0 5px #fff, 0 0 10px #00d9ff; line-height: 1; padding-bottom: 2px; }
+        .modal-body { padding: 25px 25px; font-size: 17px; text-align: center; line-height: 1.5; }
+        .modal-footer { display: flex; align-items: center; justify-content: center; padding: 12px; border-top: 1px solid rgba(0, 217, 255, 0.5); gap: 15px; }
+        .btn-modal { background: rgba(0, 217, 255, 0.05); border: 1px solid #00d9ff; color: #ffffff; padding: 8px 45px; font-size: 18px; cursor: pointer; transition: 0.3s; }
+        .btn-modal:hover { transform: scale(1.05); box-shadow: 0 0 15px #00d9ff; }
+    </style>
+</head>
+<body onclick="removeHighlights()">
+
+    <div class="profile-hud" onclick="showProfile()">
+        <div class="profile-avatar">
+            <i class="fas fa-crown"></i> 
+        </div>
+        <div class="profile-info">
+            <span class="profile-name">JAKE</span>
+            <span class="profile-rank">Rango E • Nivel 1</span>
+        </div>
+    </div>
+
+    <h1 style="text-align:center; font-size: 24px; letter-spacing: 5px; margin-top: 0;"> [ Sistema de combate activado ] </h1>
+
+    <div class="game-layout">
+        <div id="board-wrapper">
+            <div id="board" onclick="event.stopPropagation()"></div>
+            <div class="board-footer">
+                <div class="footer-btns">
+                    <span class="btn-resign" onclick="endGame('Abandono')">Rendirse</span>
+                    <span class="btn-draw" onclick="alert('Propuesta de tablas enviada')">Ofrecer tablas</span>
+                </div>
+                <div class="nav-arrows">
+                    <span class="control-item" onclick="undoMove()"> < </span>
+                    <span class="control-item" onclick="redoMove()"> > </span>
+                </div>
+                <div class="control-item" onclick="alert('Abriendo chat de la partida...')">
+                    <i class="fas fa-comment-dots"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="online-panel" onclick="event.stopPropagation()">
+            <div id="clock-black" class="clock">10:00</div>
+            <div id="clock-white" class="clock">10:00</div>
+            <button class="btn-system" onclick="alert('Buscando cazadores...')">Modo multijugador</button>
+            <button class="btn-system" onclick="alert('IA próximamente...')">Desafío contra bots</button>
+            <button class="btn-system" onclick="alert('Analizando...')">Análisis de partida</button>
+            
+            <button class="btn-system" onclick="showMissions()">Misiones</button>
+            
+            <button class="btn-new-game" onclick="location.reload()">Nueva partida</button>
+            <button id="btn-rematch" onclick="askRematch()">Solicitar revancha</button>
+        </div>
+    </div>
+
+    <div id="system-modal">
+        <div id="modal-container" class="leveling-frame">
+            <div class="modal-header"><div class="info-circle">!</div> <span id="modal-title">NOTIFICACIÓN</span></div>
+            <div id="modal-text" class="modal-body"></div>
+            <div id="modal-footer" class="modal-footer"></div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+
+    <script>
+        var board = null, game = new Chess(), timerInterval = null, sourceSquare = null;
+        var timeLeftWhite = 600, timeLeftBlack = 600;
+        var redoStack = []; 
+
+        function removeHighlights() { $('.highlight-hint, .highlight-capture').remove(); sourceSquare = null; }
+
+        function updateCheckVisuals() {
+            $('#board .square-55d63').removeClass('check-warning');
+            if (game.in_check() || game.in_checkmate()) {
+                const turn = game.turn();
+                game.SQUARES.forEach(sq => {
+                    const piece = game.get(sq);
+                    if (piece && piece.type === 'k' && piece.color === turn) $('#board .square-' + sq).addClass('check-warning');
+                });
+            }
+        }
+
+        function undoMove() {
+            var move = game.undo(); 
+            if (move) { redoStack.push(move); board.position(game.fen()); updateCheckVisuals(); }
+        }
+
+        function redoMove() {
+            var move = redoStack.pop(); 
+            if (move) { game.move(move); board.position(game.fen()); updateCheckVisuals(); }
+        }
+
+        function showMoves(sq) {
+            removeHighlights();
+            sourceSquare = sq;
+            game.moves({ square: sq, verbose: true }).forEach(m => {
+                var type = game.get(m.to) ? 'highlight-capture' : 'highlight-hint';
+                $('#board .square-' + m.to).append('<div class="' + type + '"></div>');
+            });
+        }
+
+        function onSquareClick(square) {
+            if (game.game_over()) return;
+            if (sourceSquare) {
+                var move = game.move({ from: sourceSquare, to: square, promotion: 'q' });
+                if (move) {
+                    redoStack = []; 
+                    board.position(game.fen());
+                    removeHighlights();
+                    updateCheckVisuals();
+                    if (!timerInterval) timerInterval = setInterval(updateClocks, 1000);
+                    if (game.in_checkmate()) endGame("Mate");
+                    return;
+                }
+            }
+            var piece = game.get(square);
+            if (piece && piece.color === game.turn()) showMoves(square);
+            else removeHighlights();
+        }
+
+        function updateClocks() {
+            if (game.turn() === 'w') timeLeftWhite--; else timeLeftBlack--;
+            $('#clock-white').text(formatTime(timeLeftWhite));
+            $('#clock-black').text(formatTime(timeLeftBlack));
+        }
+
+        function formatTime(s) {
+            var m = Math.floor(s/60), sec = s%60;
+            return m + ":" + (sec < 10 ? "0"+sec : sec);
+        }
+
+        function endGame(reason) {
+            clearInterval(timerInterval);
+            updateCheckVisuals();
+            $('#modal-container').removeClass('profile-frame-active'); // Notificacion al medio
+            var winner = game.turn() === 'w' ? "Negras" : "Blancas";
+            $('#modal-title').text("NOTIFICACIÓN");
+            $('#modal-text').html("El duelo ha finalizado.<br>Ganador: " + winner + "<br>Motivo: " + reason);
+            $('#modal-footer').html('<button class="btn-modal" onclick="closeModal()">Entendido</button>');
+            $('#system-modal').fadeIn(300);
+            $('#btn-rematch').show();
+        }
+
+        function askRematch() {
+            $('#modal-container').removeClass('profile-frame-active'); // Notificacion al medio
+            $('#modal-title').text("NOTIFICACIÓN");
+            $('#modal-text').text("¿Deseas aceptar la solicitud de revancha?");
+            $('#modal-footer').html('<button class="btn-modal" onclick="confirmRematch()">SÍ</button><button class="btn-modal" onclick="closeModal()">NO</button>');
+            $('#system-modal').fadeIn(300);
+        }
+
+        function showMissions() {
+            $('#modal-container').removeClass('profile-frame-active'); // Misiones al medio
+            $('#modal-title').text("NOTIFICACIÓN");
+            var html = `
+                <div class="mission-box">
+                    <h3 class="mission-title">MISIÓN DIARIA: PREPARACIÓN</h3>
+                    <ul class="mission-list">
+                        <li><span class="mission-checkbox">[ ]</span> Ganar 1 Partida (0/1)</li>
+                        <li><span class="mission-checkbox">[ ]</span> Jugar sin cometer errores (0/3)</li>
+                        <li><span class="mission-checkbox">[ ]</span> Analizar una partida (0/1)</li>
+                    </ul>
+                    <div class="mission-warning">! ATENCIÓN: EL INCUMPLIMIENTO RESULTARÁ EN UNA PENALIZACIÓN.</div>
+                </div>
+            `;
+            $('#modal-text').html(html);
+            $('#modal-footer').html('<button class="btn-modal" onclick="closeModal()">CERRAR</button>');
+            $('#system-modal').fadeIn(300);
+        }
+
+        function showProfile() {
+            $('#modal-title').text("PERFIL DE JUGADOR");
+            $('#modal-container').addClass('profile-frame-active'); // <--- SUBIR EL CUADRO SOLO AQUÍ
+            
+            var html = `
+                <div style="text-align: center;">
+                    <div class="profile-avatar" style="margin: 0 auto 10px; width: 65px; height: 65px; border-radius: 50%; box-shadow: 0 0 20px #00d9ff;">
+                        <i class="fas fa-crown" style="font-size: 40px; color: #00d9ff;"></i>
+                    </div>
+                    <h2 style="color: #fff; margin: 0; text-shadow: 0 0 10px #00d9ff; font-size: 20px;">JAKE [Rango E]</h2>
+                    <p style="font-size: 13px; color: #aaa; margin: 3px 0;">Clase: Estratega de Sombras</p>
+
+                    <div class="profile-menu-grid">
+                        <div class="profile-stat"><span class="stat-val">100</span><span class="stat-label">ELO Actual</span></div>
+                        <div class="profile-stat"><span class="stat-val">0</span><span class="stat-label">Victorias</span></div>
+                    </div>
+
+                    <div style="margin-top: 15px; display: flex; flex-direction: column; gap: 8px;">
+                        <button class="btn-system" style="width: 100%; padding: 8px;" onclick="showRankListInModal()">Ver Tabla de Rangos</button>
+                        <button class="btn-system" style="width: 100%; padding: 8px;" onclick="alert('No hay mensajes nuevos.')">Bandeja de Mensajes (0)</button>
+                        <button class="btn-system" style="width: 100%; padding: 8px;" onclick="alert('Inventario vacío.')">Inventario</button>
+                    </div>
+                </div>
+            `;
+            $('#modal-text').html(html);
+            $('#modal-footer').html('<button class="btn-modal" style="padding: 6px 30px; font-size: 16px;" onclick="closeModal()">CERRAR</button>');
+            $('#system-modal').fadeIn(300);
+        }
+
+        function showRankListInModal() {
+            var html = `
+                <h3 style="color:#fff; border-bottom:1px solid #00d9ff; padding-bottom:5px; font-size: 18px;">TABLA DE CLASIFICACIÓN</h3>
+                <table class="rank-table">
+                    <tr><th>Rango</th><th>ELO</th><th>Nivel</th></tr>
+                    <tr><td>RANGO E</td><td>100-999</td><td>Principiante</td></tr>
+                    <tr><td>RANGO D</td><td>1000-1399</td><td>Aficionado</td></tr>
+                    <tr><td>RANGO C</td><td>1400-1699</td><td>Intermedio</td></tr>
+                    <tr><td>RANGO B</td><td>1700-1999</td><td>Experto</td></tr>
+                    <tr><td>RANGO A</td><td>2000-2999</td><td>Maestro</td></tr>
+                    <tr><td>RANGO S</td><td>3000+</td><td>Gran Maestro</td></tr>
+                    <tr style="font-weight:bold; text-shadow: 0 0 10px #00d9ff;"><td>MONARCA</td><td>???</td><td>Gobernante</td></tr>
+                </table>
+                <div style="margin-top:10px; font-size:12px; color:#aaa;">Tu rango actual: <span style="color:#fff; font-weight:bold;">Rango E (100)</span></div>
+            `;
+            $('#modal-text').html(html);
+            $('#modal-footer').html('<button class="btn-modal" style="padding: 6px 30px; font-size: 16px;" onclick="showProfile()">VOLVER</button>');
+        }
+
+        function confirmRematch() { location.reload(); }
+        function closeModal() { 
+            $('#system-modal').fadeOut(300); 
+            // Reset de posicion al cerrar
+            setTimeout(() => $('#modal-container').removeClass('profile-frame-active'), 300);
+        }
+
+        board = Chessboard('board', {
+            draggable: true, position: 'start',
+            pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
+            onDragStart: (s, p) => {
+                if (game.game_over() || (game.turn()==='w' && p.search(/^b/)!==-1) || (game.turn()==='b' && p.search(/^w/)!==-1)) return false;
+                showMoves(s);
+            },
+            onDrop: (s, t) => {
+                var m = game.move({ from: s, to: t, promotion: 'q' });
+                if (m === null) { setTimeout(() => showMoves(s), 50); return 'snapback'; }
+                redoStack = []; 
+                removeHighlights();
+                updateCheckVisuals();
+                if (!timerInterval) timerInterval = setInterval(updateClocks, 1000);
+                if (game.in_checkmate()) endGame("Mate");
+            },
+            onSnapEnd: () => board.position(game.fen())
+        });
+
+        $('#board').on('click', '[class^="square-"]', function() {
+            onSquareClick($(this).data('square'));
+        });
+    </script>
+</body>
+</html>
