@@ -5,6 +5,10 @@
     <title>System: Chess Leveling</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+    
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
     <style>
         body { background-color: #01060f; color: #ffffff; font-family: 'Arial', sans-serif; margin: 0; padding: 20px; overflow: hidden; }
         
@@ -207,7 +211,7 @@
         <div class="profile-avatar"><i class="fas fa-crown"></i></div>
         <div class="profile-info">
             <span class="profile-name">JAKE</span>
-            <span class="profile-rank">Rango E • Nivel 1</span>
+            <span id="txt-rol" class="profile-rank">Rango E • Buscando Partida...</span>
         </div>
     </div>
 
@@ -242,7 +246,7 @@
             <div id="panel-principal" style="display: flex; flex-direction: column; gap: 10px;">
                 <button class="btn-system" onclick="activarModoLog()">Modo multijugador</button>
                 <button class="btn-system" onclick="showDungeonSelect()">Incursión en Mazmorra</button>
-                <button class="btn-system" onclick="alert('Analizando...')">Análisis de partida</button>
+                <button class="btn-system" style="border-color: #ff0055; color: #ff0055;" onclick="resetearSala()">RESET SISTEMA (NUEVO DUELO)</button>
                 <button class="btn-system" onclick="showMissions()">Misiones</button>
                 <button class="btn-system" style="border-color: #ffaa00; color: #ffaa00;" onclick="setSystemTime(null)">SIN LÍMITES</button>
             </div>
@@ -277,7 +281,58 @@
         var sinLimites = false;
         var redoStack = []; 
 
-        // --- LÓGICA DE TIEMPO Y EMPAREJAMIENTO ---
+        // --- FIREBASE: LÓGICA DE AZAR Y CONEXIÓN ---
+        var miColor = 'w';
+        const firebaseConfig = {
+          apiKey: "AIzaSyDTKMsygBXQwHqdGekGR9GcvHPbzpuoFPs",
+          authDomain: "cheeveling.firebaseapp.com",
+          databaseURL: "https://cheeveling-default-rtdb.firebaseio.com",
+          projectId: "cheeveling",
+          storageBucket: "cheeveling.firebasestorage.app",
+          messagingSenderId: "45408006333",
+          appId: "1:45408006333:web:1eb3116ec838e6e41cc7d4"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database().ref('duelo_en_vivo');
+        const salaRef = firebase.database().ref('sala_actual');
+
+        // Asignación de Color al Azar al Entrar
+        salaRef.transaction((currentData) => {
+            if (currentData === null) {
+                const azar = Math.random() < 0.5 ? 'w' : 'b';
+                return { j1_color: azar, ocupado: 1 };
+            } else if (currentData.ocupado === 1) {
+                const colorFaltante = currentData.j1_color === 'w' ? 'b' : 'w';
+                return { ...currentData, j2_color: colorFaltante, ocupado: 2 };
+            }
+            return;
+        }, (error, committed, snapshot) => {
+            if (committed) {
+                const data = snapshot.val();
+                miColor = (data.ocupado === 1) ? data.j1_color : data.j2_color;
+                document.getElementById('txt-rol').innerText = "CLASE: " + (miColor === 'w' ? "BLANCO" : "NEGRO");
+                if (miColor === 'b') board.orientation('black');
+            }
+        });
+
+        // Escuchar Oponente
+        db.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data && data.emisor !== miColor) {
+                game.move(data.movimiento);
+                board.position(game.fen());
+                actualizarUIJugadas();
+                updateCheckVisuals();
+            }
+        });
+
+        function resetearSala() {
+            salaRef.remove();
+            db.remove();
+            location.reload();
+        }
+
+        // --- TUS FUNCIONES DE TIEMPO Y EMPAREJAMIENTO ---
         function setSystemTime(segundos) {
             clearInterval(timerInterval);
             timerInterval = null;
@@ -295,12 +350,9 @@
             }
         }
 
-        // --- LÓGICA DE REGISTRO DE JUGADAS ---
         function activarModoLog() {
             document.getElementById('panel-principal').style.display = 'none';
             document.getElementById('multiplayer-log').style.display = 'flex';
-            
-            // Mejora: Menú de retos para emparejar tiempo + SIN LÍMITES
             let html = `
                 <div style="color:#00d9ff; text-align:center; margin-bottom:10px; font-size:11px;">RETOS DISPONIBLES</div>
                 <div class="challenge-item" onclick="setSystemTime(60); alert('Duelo Bala Emparejado');"><span>Bala</span><span class="challenge-time">1:00</span></div>
@@ -333,7 +385,7 @@
             }
         }
 
-        // --- TUS FUNCIONES ORIGINALES ---
+        // --- TUS FUNCIONES DE JUEGO ORIGINALES ---
         function removeHighlights() { $('.highlight-hint, .highlight-capture').remove(); sourceSquare = null; }
 
         function updateCheckVisuals() {
@@ -371,11 +423,8 @@
             if (sourceSquare) {
                 var move = game.move({ from: sourceSquare, to: square, promotion: 'q' });
                 if (move) {
-                    redoStack = []; 
-                    board.position(game.fen());
-                    removeHighlights();
-                    updateCheckVisuals();
-                    actualizarUIJugadas();
+                    db.set({ movimiento: move, emisor: miColor });
+                    redoStack = []; board.position(game.fen()); removeHighlights(); updateCheckVisuals(); actualizarUIJugadas();
                     if (!timerInterval && !sinLimites) timerInterval = setInterval(updateClocks, 1000);
                     if (game.in_checkmate()) endGame("Mate");
                     return;
@@ -399,9 +448,7 @@
             return m + ":" + (sec < 10 ? "0"+sec : sec);
         }
 
-        function openModal() {
-            $('#system-modal').css('display', 'flex').hide().fadeIn(300);
-        }
+        function openModal() { $('#system-modal').css('display', 'flex').hide().fadeIn(300); }
 
         function endGame(reason) {
             clearInterval(timerInterval);
@@ -554,9 +601,7 @@
             let bots = botsData[rango] || botsData['E'];
             let step = Math.floor((maxElo - minElo) / bots.length);
             var html = `<div class="dungeon-list">`;
-            
             let tDungeon = (rango === 'E') ? 600 : (rango === 'D') ? 300 : 180;
-
             bots.forEach((botName, index) => {
                 let currentElo = minElo + (step * index);
                 html += `<div class="dungeon-item" onclick="setSystemTime(${tDungeon}); closeModal(); alert('Iniciando Incursión contra ${botName}...');">
@@ -571,28 +616,28 @@
         }
 
         function confirmRematch() { location.reload(); }
-        function closeModal() { 
-            $('#system-modal').fadeOut(300); 
-            setTimeout(() => $('#modal-container').removeClass('profile-frame-active'), 300);
-        }
+        function closeModal() { $('#system-modal').fadeOut(300); setTimeout(() => $('#modal-container').removeClass('profile-frame-active'), 300); }
 
         board = Chessboard('board', {
             draggable: true, position: 'start',
             pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
             onDragStart: (s, p) => {
-                if (game.game_over() || (game.turn()==='w' && p.search(/^b/)!==-1) || (game.turn()==='b' && p.search(/^w/)!==-1)) return false;
+                if (game.game_over() || (miColor === 'w' && p.search(/^b/) !== -1) || (miColor === 'b' && p.search(/^w/) !== -1)) return false;
                 showMoves(s);
             },
             onDrop: (s, t) => {
                 var m = game.move({ from: s, to: t, promotion: 'q' });
                 if (m === null) { setTimeout(() => showMoves(s), 50); return 'snapback'; }
+                
+                // Envío de jugada con mi bando asignado
+                db.set({ movimiento: m, emisor: miColor });
+
                 redoStack = []; removeHighlights(); updateCheckVisuals(); actualizarUIJugadas();
                 if (!timerInterval && !sinLimites) timerInterval = setInterval(updateClocks, 1000);
                 if (game.in_checkmate()) endGame("Mate");
             },
             onSnapEnd: () => board.position(game.fen())
         });
-
         $('#board').on('click', '[class^="square-"]', function() { onSquareClick($(this).data('square')); });
     </script>
 </body>
